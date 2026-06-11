@@ -1493,15 +1493,14 @@
       </div>
       <div class="form-group">
         <label>Username</label>
-        <input type="text" id="login-user" placeholder="admin" autocomplete="username">
+        <input type="text" id="login-user" placeholder="Username" autocomplete="username">
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+        <input type="password" id="login-pass" placeholder="Password" autocomplete="current-password">
       </div>
-      <button class="btn-primary" onclick="doLogin()">Masuk</button>
+      <button class="btn-primary" onclick="doLogin()">Login</button>
       <p class="login-error" id="login-error">Username atau password salah.</p>
-      <p class="login-hint">Super Admin: admin / admin123</p>
     </div>
   </div>
 
@@ -2390,6 +2389,13 @@
     async function addGuest() {
       const name = document.getElementById('new-name').value.trim();
       if (!name) { showToast('error', 'Error', 'Nama tamu harus diisi'); return; }
+      
+      const isDuplicate = guests.some(g => g.name.toLowerCase().trim() === name.toLowerCase());
+      if (isDuplicate) {
+        showToast('error', 'Error', 'Nama tamu "' + name + '" sudah terdaftar');
+        return;
+      }
+
       const id = 'G' + String(guests.length + 1).padStart(3, '0');
       const newGuest = { id, wedding_id: currentWeddingId, name, checkin: null };
 
@@ -2458,7 +2464,8 @@
       let toInsert = [];
       let added = 0;
       samples.forEach(name => {
-        if (!guests.find(g => g.name === name)) {
+        const isDuplicate = guests.some(g => g.name.toLowerCase().trim() === name.toLowerCase().trim());
+        if (!isDuplicate) {
           const id = 'G' + String(guests.length + 1 + added).padStart(3, '0');
           toInsert.push({ id, wedding_id: currentWeddingId, name, checkin: null });
           added++;
@@ -2515,7 +2522,10 @@
           let added = 0;
           rows.forEach(row => {
             const name = (row['Nama'] || row['Nama Tamu'] || row['nama'] || '').toString().trim();
-            if (!name || guests.find(g => g.name === name)) return;
+            if (!name) return;
+            const isDuplicate = guests.some(g => g.name.toLowerCase().trim() === name.toLowerCase()) || 
+                               toInsert.some(g => g.name.toLowerCase().trim() === name.toLowerCase());
+            if (isDuplicate) return;
             const id = 'G' + String(guests.length + 1 + added).padStart(3, '0');
             toInsert.push({ id, wedding_id: currentWeddingId, name, checkin: null });
             added++;
