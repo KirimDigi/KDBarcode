@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link
     href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap"
     rel="stylesheet">
@@ -510,6 +511,18 @@
       transition: box-shadow .25s, border-color .25s;
     }
 
+    .panel.flex-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .panel.flex-panel .panel-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
     .panel:hover {
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(0, 180, 216, 0.12);
       border-color: rgba(0, 180, 216, 0.28);
@@ -912,6 +925,19 @@
       margin-bottom: 24px;
     }
 
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1.8fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .stat-card {
       background: var(--dark2);
       border: 1px solid var(--border);
@@ -952,7 +978,7 @@
 
     .progress-bar {
       height: 100%;
-      background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+      background: linear-gradient(90deg, #1fa87f, var(--success));
       border-radius: 20px;
       transition: width .5s ease;
     }
@@ -1000,6 +1026,12 @@
 
     .btn-export:hover {
       background: rgba(201, 168, 76, 0.1);
+    }
+
+    .btn-export.wishes-filter-btn.active {
+      background: linear-gradient(135deg, var(--gold-dim), var(--gold)) !important;
+      color: var(--dark) !important;
+      border-color: var(--gold) !important;
     }
 
     table {
@@ -1493,15 +1525,14 @@
       </div>
       <div class="form-group">
         <label>Username</label>
-        <input type="text" id="login-user" placeholder="admin" autocomplete="username">
+        <input type="text" id="login-user" placeholder="Username" autocomplete="username">
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+        <input type="password" id="login-pass" placeholder="Password" autocomplete="current-password">
       </div>
-      <button class="btn-primary" onclick="doLogin()">Masuk</button>
+      <button class="btn-primary" onclick="doLogin()">Login</button>
       <p class="login-error" id="login-error">Username atau password salah.</p>
-      <p class="login-hint">Super Admin: admin / admin123</p>
     </div>
   </div>
 
@@ -1541,6 +1572,10 @@
           <div class="form-group">
             <label>Tanggal Pernikahan</label>
             <input type="date" id="new-wed-date">
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Link Google Sheets CSV (RSVP & Ucapan)</label>
+            <input type="text" id="new-wed-sheet-url" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv">
           </div>
         </div>
         <button class="btn-primary" style="max-width:200px;margin-top:4px" onclick="addWedding()">+ Tambah Akun</button>
@@ -1711,32 +1746,77 @@
             <div class="stat-label">Kehadiran</div>
           </div>
         </div>
-        <div class="panel">
-          <div class="panel-header">
-            <div class="panel-icon">▤</div>
-            <span class="panel-title">Progress Kehadiran</span>
+        <div class="dashboard-grid">
+          <!-- Left Column: Chart -->
+          <div class="panel flex-panel">
+            <div class="panel-header">
+              <div class="panel-icon">📊</div>
+              <span class="panel-title">Grafik Kehadiran</span>
+            </div>
+            <div class="panel-body" style="position:relative; display:flex; flex-direction:column; justify-content:center; align-items:center; min-height:240px;">
+              <div style="width:100%; height:220px; position:relative;">
+                <canvas id="attendanceChart"></canvas>
+              </div>
+            </div>
           </div>
-          <div class="panel-body">
-            <div
-              style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);margin-bottom:6px">
-              <span>Hadir: <span id="dash-hadir">0</span></span>
-              <span>Target: <span id="dash-total">0</span> tamu</span>
+
+          <!-- Right Column: Progress & Activity -->
+          <div style="display:flex; flex-direction:column; gap:16px; height: 100%;">
+            <div class="panel" style="flex-shrink: 0;">
+              <div class="panel-header">
+                <div class="panel-icon">▤</div>
+                <span class="panel-title">Progress Kehadiran</span>
+              </div>
+              <div class="panel-body">
+                <div
+                  style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);margin-bottom:6px">
+                  <span>Hadir: <span id="dash-hadir">0</span></span>
+                  <span>Target: <span id="dash-total">0</span> tamu</span>
+                </div>
+                <div class="progress-bar-wrap">
+                  <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+                </div>
+                <p style="text-align:center;font-size:12px;color:var(--text-dim);margin-top:10px;letter-spacing:0.1em">
+                  Realtime · Update otomatis setiap scan
+                </p>
+              </div>
             </div>
-            <div class="progress-bar-wrap">
-              <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+
+            <div class="panel flex-panel">
+              <div class="panel-header">
+                <div class="panel-icon">◑</div>
+                <span class="panel-title">Aktivitas Terkini</span>
+              </div>
+              <div class="panel-body" style="padding:0; display:flex; flex-direction:column; flex:1;">
+                <div id="activity-feed" style="flex: 1; min-height: 120px; overflow-y:auto"></div>
+              </div>
             </div>
-            <p style="text-align:center;font-size:12px;color:var(--text-dim);margin-top:10px;letter-spacing:0.1em">
-              Realtime · Update otomatis setiap scan
-            </p>
           </div>
         </div>
-        <div class="panel" style="margin-top:16px">
-          <div class="panel-header">
-            <div class="panel-icon">◑</div>
-            <span class="panel-title">Aktivitas Terkini</span>
+
+        <!-- ── UCAPAN & RSVP LIVE FEED ── -->
+        <div class="panel" style="margin-top: 16px;">
+          <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding: 12px 20px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div class="panel-icon">💌</div>
+              <span class="panel-title">Ucapan & RSVP Live Feed</span>
+            </div>
+            <!-- Hidden input to maintain script compatibility -->
+            <input type="hidden" id="gsheets-url-input">
           </div>
-          <div class="panel-body" style="padding:0">
-            <div id="activity-feed" style="max-height:320px;overflow-y:auto"></div>
+          <div class="panel-body" style="padding:20px;">
+            <div id="wishes-loading" style="display:none; text-align:center; color:var(--text-dim); padding:20px;">Memuat ucapan...</div>
+            <div id="wishes-empty" style="text-align:center; color:var(--text-dim); padding:40px 0; font-size:13px;">Belum ada data ucapan yang terhubung untuk pernikahan ini.</div>
+            
+            <!-- Filter buttons -->
+            <div id="wishes-filter-bar" style="display:none; gap:8px; margin-bottom:16px;">
+              <button class="btn-export wishes-filter-btn active" onclick="filterWishes('semua')">Semua</button>
+              <button class="btn-export wishes-filter-btn" onclick="filterWishes('Hadir')">Hadir</button>
+              <button class="btn-export wishes-filter-btn" onclick="filterWishes('Tidak Hadir')">Tidak Hadir</button>
+            </div>
+
+            <!-- Wishes container -->
+            <div id="wishes-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px; max-height:400px; overflow-y:auto; padding-right:4px;"></div>
           </div>
         </div>
       </div>
@@ -1891,15 +1971,25 @@
       w.guests = guests;
       w.recentScans = recentScans;
       w.activityLog = activityLog;
+      w.sheet_url = document.getElementById('gsheets-url-input')?.value.trim() || w.sheet_url || '';
       saveWeddings();
 
       if (supabaseClient) {
         try {
-          const { error } = await supabaseClient.from('weddings').update({
+          const updateData = {
             recent_scans: recentScans,
-            activity_log: activityLog
-          }).eq('id', currentWeddingId);
-          if (error) throw error;
+            activity_log: activityLog,
+            sheet_url: w.sheet_url
+          };
+          const { error } = await supabaseClient.from('weddings').update(updateData).eq('id', currentWeddingId);
+          if (error) {
+            console.warn("Supabase update failed, attempting fallback without sheet_url:", error);
+            const { error: fallbackError } = await supabaseClient.from('weddings').update({
+              recent_scans: recentScans,
+              activity_log: activityLog
+            }).eq('id', currentWeddingId);
+            if (fallbackError) throw fallbackError;
+          }
         } catch (e) {
           console.error("Gagal sinkronisasi metadata ke Supabase:", e);
         }
@@ -1911,13 +2001,25 @@
       if (!w) return;
       currentWeddingId = weddingId;
 
+      let sheetUrl = w.sheet_url || '';
+
       if (supabaseClient) {
         try {
-          const { data: wedData, error: wedErr } = await supabaseClient.from('weddings').select('recent_scans, activity_log').eq('id', weddingId).single();
-          if (wedErr) throw wedErr;
+          let wedData = null;
+          try {
+            const { data, error } = await supabaseClient.from('weddings').select('recent_scans, activity_log, sheet_url').eq('id', weddingId).single();
+            if (error) throw error;
+            wedData = data;
+          } catch (err) {
+            console.warn("Retrying fetch without sheet_url...");
+            const { data, error } = await supabaseClient.from('weddings').select('recent_scans, activity_log').eq('id', weddingId).single();
+            if (error) throw error;
+            wedData = data;
+          }
 
           recentScans = wedData.recent_scans || [];
           activityLog = wedData.activity_log || [];
+          sheetUrl = wedData.sheet_url || w.sheet_url || '';
 
           const { data: guestData, error: guestErr } = await supabaseClient.from('guests').select('*').eq('wedding_id', weddingId);
           if (guestErr) throw guestErr;
@@ -1929,12 +2031,24 @@
           guests = w.guests || [];
           recentScans = w.recentScans || [];
           activityLog = w.activityLog || [];
+          sheetUrl = w.sheet_url || '';
         }
       } else {
         guests = w.guests || [];
         recentScans = w.recentScans || [];
         activityLog = w.activityLog || [];
       }
+
+      // Populate input and fetch wishes
+      setTimeout(() => {
+        const input = document.getElementById('gsheets-url-input');
+        if (input) input.value = sheetUrl;
+        if (sheetUrl) {
+          fetchGSheetsWishes(sheetUrl);
+        } else {
+          showNoSheetConnected();
+        }
+      }, 100);
     }
 
     // ══════════════════════════════════════════
@@ -1978,6 +2092,10 @@
       document.getElementById('page-login').classList.add('active');
       isSuperAdmin = false;
       currentWeddingId = null;
+      if (attendanceChart) {
+        attendanceChart.destroy();
+        attendanceChart = null;
+      }
     }
 
     async function backToAdmin() {
@@ -1987,6 +2105,10 @@
       document.getElementById('page-app').classList.remove('active');
       document.getElementById('page-admin').classList.add('active');
       renderWeddingList();
+      if (attendanceChart) {
+        attendanceChart.destroy();
+        attendanceChart = null;
+      }
     }
 
     function toggleAutoMode() {
@@ -2014,9 +2136,13 @@
           <div class="wedding-couple">${w.bride} ♡ ${w.groom}</div>
           <div class="wedding-meta">${w.date} · ${total} tamu · ${hadir} hadir</div>
           <div class="wedding-meta" style="margin-top:2px;color:var(--gold)">User: <strong>${w.user}</strong> / Pass: <strong>${w.pass}</strong></div>
+          <div class="wedding-meta" style="margin-top:2px;color:${w.sheet_url ? 'var(--success)' : 'var(--text-dim)'}">
+            Spreadsheet: <strong>${w.sheet_url ? 'Terhubung ✓' : 'Belum Terhubung ✕'}</strong>
+          </div>
         </div>
         <div class="wedding-actions">
           <button class="btn-admin primary" onclick="enterWedding('${w.id}')">Buka</button>
+          <button class="btn-admin" onclick="editWeddingSheetUrl('${w.id}')" style="border-color:var(--gold); color:var(--gold);">Edit Link</button>
           <button class="btn-admin danger" onclick="deleteWedding('${w.id}')">Hapus</button>
         </div>
       </div>`;
@@ -2029,15 +2155,20 @@
       const user = document.getElementById('new-wed-user').value.trim();
       const pass = document.getElementById('new-wed-pass').value.trim();
       const date = document.getElementById('new-wed-date').value;
+      const sheet_url = document.getElementById('new-wed-sheet-url').value.trim();
       if (!groom || !bride || !user || !pass) { showToast('error', 'Error', 'Lengkapi semua field'); return; }
       if (weddings.find(w => w.user === user)) { showToast('error', 'Error', 'Username sudah digunakan'); return; }
       const id = 'W' + String(weddings.length + 1).padStart(3, '0');
 
-      const newWed = { id, user, pass, groom, bride, date, recent_scans: [], activity_log: [] };
+      const newWed = { id, user, pass, groom, bride, date, sheet_url, recent_scans: [], activity_log: [] };
       if (supabaseClient) {
         try {
           const { error } = await supabaseClient.from('weddings').insert([newWed]);
-          if (error) throw error;
+          if (error) {
+            console.warn("Supabase insert failed, attempting fallback without sheet_url:", error);
+            const { error: fallbackError } = await supabaseClient.from('weddings').insert([{ id, user, pass, groom, bride, date, recent_scans: [], activity_log: [] }]);
+            if (fallbackError) throw fallbackError;
+          }
         } catch (e) {
           console.error(e);
           showToast('error', 'Gagal Simpan', 'Gagal: ' + (e.message || JSON.stringify(e)));
@@ -2052,6 +2183,7 @@
       document.getElementById('new-wed-user').value = '';
       document.getElementById('new-wed-pass').value = '';
       document.getElementById('new-wed-date').value = '';
+      document.getElementById('new-wed-sheet-url').value = '';
       renderWeddingList();
       showToast('success', 'Akun Dibuat', 'Akun pernikahan ' + bride + ' ♡ ' + groom + ' berhasil dibuat');
     }
@@ -2072,6 +2204,33 @@
       saveWeddings();
       renderWeddingList();
       showToast('success', 'Dihapus', 'Akun pernikahan berhasil dihapus');
+    }
+
+    async function editWeddingSheetUrl(id) {
+      const w = weddings.find(x => x.id === id);
+      if (!w) return;
+      const newUrl = prompt("Masukkan Link Google Sheets CSV (RSVP & Ucapan):", w.sheet_url || "");
+      if (newUrl === null) return;
+      w.sheet_url = newUrl.trim();
+      saveWeddings();
+
+      if (supabaseClient) {
+        try {
+          const { error } = await supabaseClient.from('weddings').update({ sheet_url: w.sheet_url }).eq('id', id);
+          if (error) {
+            console.warn("Gagal update sheet_url di Supabase (mungkin kolom belum ada):", error);
+            showToast('info', 'Disimpan Lokal', 'Link disimpan lokal di peramban.');
+          } else {
+            showToast('success', 'Diperbarui', 'Link spreadsheet berhasil diperbarui.');
+          }
+        } catch (e) {
+          console.error(e);
+          showToast('info', 'Disimpan Lokal', 'Link disimpan lokal.');
+        }
+      } else {
+        showToast('success', 'Diperbarui', 'Link spreadsheet berhasil diperbarui.');
+      }
+      renderWeddingList();
     }
 
     async function enterWedding(id) {
@@ -2317,6 +2476,56 @@
     // ══════════════════════════════════════════
     //  DASHBOARD
     // ══════════════════════════════════════════
+    let attendanceChart = null;
+    function updateChart(hadir, belum) {
+      if (typeof Chart === 'undefined') {
+        console.warn("Chart.js library belum termuat.");
+        return;
+      }
+      const canvas = document.getElementById('attendanceChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      
+      const chartData = {
+        labels: ['Hadir', 'Belum Hadir'],
+        datasets: [{
+          data: [hadir, belum],
+          backgroundColor: ['#2DD4A0', '#E0B84A'], // Success green vs Gold
+          borderColor: '#071525',
+          borderWidth: 2,
+          hoverOffset: 4
+        }]
+      };
+
+      if (attendanceChart) {
+        attendanceChart.data.datasets[0].data = [hadir, belum];
+        attendanceChart.update();
+      } else {
+        attendanceChart = new Chart(ctx, {
+          type: 'doughnut',
+          data: chartData,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {
+                  color: '#D0E8F4',
+                  padding: 15,
+                  font: {
+                    family: "'DM Sans', sans-serif",
+                    size: 11
+                  }
+                }
+              }
+            },
+            cutout: '70%'
+          }
+        });
+      }
+    }
+
     function updateDashboard() {
       const total = guests.length;
       const hadir = guests.filter(g => g.checkin).length;
@@ -2329,6 +2538,7 @@
       document.getElementById('dash-hadir').textContent = hadir;
       document.getElementById('dash-total').textContent = total;
       document.getElementById('progress-bar').style.width = pct + '%';
+      updateChart(hadir, belum);
     }
 
     function renderActivity() {
@@ -2390,6 +2600,13 @@
     async function addGuest() {
       const name = document.getElementById('new-name').value.trim();
       if (!name) { showToast('error', 'Error', 'Nama tamu harus diisi'); return; }
+      
+      const isDuplicate = guests.some(g => g.name.toLowerCase().trim() === name.toLowerCase());
+      if (isDuplicate) {
+        showToast('error', 'Error', 'Nama tamu "' + name + '" sudah terdaftar');
+        return;
+      }
+
       const id = 'G' + String(guests.length + 1).padStart(3, '0');
       const newGuest = { id, wedding_id: currentWeddingId, name, checkin: null };
 
@@ -2458,7 +2675,8 @@
       let toInsert = [];
       let added = 0;
       samples.forEach(name => {
-        if (!guests.find(g => g.name === name)) {
+        const isDuplicate = guests.some(g => g.name.toLowerCase().trim() === name.toLowerCase().trim());
+        if (!isDuplicate) {
           const id = 'G' + String(guests.length + 1 + added).padStart(3, '0');
           toInsert.push({ id, wedding_id: currentWeddingId, name, checkin: null });
           added++;
@@ -2515,7 +2733,10 @@
           let added = 0;
           rows.forEach(row => {
             const name = (row['Nama'] || row['Nama Tamu'] || row['nama'] || '').toString().trim();
-            if (!name || guests.find(g => g.name === name)) return;
+            if (!name) return;
+            const isDuplicate = guests.some(g => g.name.toLowerCase().trim() === name.toLowerCase()) || 
+                               toInsert.some(g => g.name.toLowerCase().trim() === name.toLowerCase());
+            if (isDuplicate) return;
             const id = 'G' + String(guests.length + 1 + added).padStart(3, '0');
             toInsert.push({ id, wedding_id: currentWeddingId, name, checkin: null });
             added++;
@@ -2608,6 +2829,159 @@
       const d = new Date(iso);
       return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
         ' · ' + d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    // ══════════════════════════════════════════
+    //  GOOGLE SHEETS WISHES INTEGRATION
+    // ══════════════════════════════════════════
+    let allWishes = [];
+    async function fetchGSheetsWishes(url) {
+      if (!url) return;
+      const loading = document.getElementById('wishes-loading');
+      const empty = document.getElementById('wishes-empty');
+      const filterBar = document.getElementById('wishes-filter-bar');
+      const container = document.getElementById('wishes-container');
+      
+      if (loading) loading.style.display = 'block';
+      if (empty) empty.style.display = 'none';
+      if (filterBar) filterBar.style.display = 'none';
+      if (container) container.innerHTML = '';
+      
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Gagal mengambil data dari Google Sheets.");
+        const csvText = await res.text();
+        
+        if (typeof XLSX === 'undefined') {
+          throw new Error("Library XLSX belum termuat. Silakan tunggu sebentar.");
+        }
+        
+        const workbook = XLSX.read(csvText, { type: 'string' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        
+        allWishes = rows.map(row => {
+          const keys = Object.keys(row);
+          
+          const nameKey = keys.find(k => k.toLowerCase().includes('nama') || k.toLowerCase().includes('name')) || keys[1] || '';
+          const rsvpKey = keys.find(k => k.toLowerCase().includes('rsvp') || k.toLowerCase().includes('konfirmasi') || k.toLowerCase().includes('kehadiran') || k.toLowerCase().includes('status')) || keys[2] || '';
+          const wishKey = keys.find(k => k.toLowerCase().includes('ucapan') || k.toLowerCase().includes('doa') || k.toLowerCase().includes('wish') || k.toLowerCase().includes('pesan')) || keys[3] || '';
+          const timeKey = keys.find(k => k.toLowerCase().includes('timestamp') || k.toLowerCase().includes('waktu') || k.toLowerCase().includes('tanggal')) || keys[0] || '';
+          
+          return {
+            name: row[nameKey] || 'Tamu Tanpa Nama',
+            rsvp: row[rsvpKey] || 'Hadir',
+            wish: row[wishKey] || '',
+            time: row[timeKey] || ''
+          };
+        }).filter(item => item.wish.trim() !== '');
+        
+        if (loading) loading.style.display = 'none';
+        
+        if (allWishes.length === 0) {
+          if (empty) {
+            empty.textContent = 'Belum ada ucapan tertulis di spreadsheet Anda.';
+            empty.style.display = 'block';
+          }
+        } else {
+          if (filterBar) filterBar.style.display = 'flex';
+          renderWishes(allWishes);
+        }
+      } catch (err) {
+        console.error(err);
+        if (loading) loading.style.display = 'none';
+        if (empty) {
+          empty.textContent = 'Error: Gagal memuat spreadsheet. Pastikan link adalah link CSV dari "Publikasikan ke Web".';
+          empty.style.display = 'block';
+        }
+      }
+    }
+
+    function renderWishes(items) {
+      const container = document.getElementById('wishes-container');
+      if (!container) return;
+      if (items.length === 0) {
+        container.innerHTML = '<p style="grid-column: 1/-1; text-align:center; color:var(--text-dim); padding: 20px;">Tidak ada ucapan dengan filter ini.</p>';
+        return;
+      }
+      container.innerHTML = items.map(item => {
+        const isHadir = item.rsvp.toLowerCase().includes('hadir') && !item.rsvp.toLowerCase().includes('tidak');
+        const badgeClass = isHadir ? 'badge-hadir' : 'badge-belum';
+        const badgeLabel = isHadir ? '✓ Hadir' : '✕ Tidak Hadir';
+        
+        return `
+          <div class="guest-card" style="display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:16px; cursor:default; height:fit-content;">
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+              <span style="font-weight:600; color:var(--cream); font-size:14px;">${item.name}</span>
+              <span class="badge ${badgeClass}" style="font-size:9px; padding:2px 8px;">${badgeLabel}</span>
+            </div>
+            <p style="font-size:13px; color:var(--text); font-style:italic; line-height:1.4; margin:4px 0; width:100%;">
+              "${item.wish}"
+            </p>
+            <span style="font-size:10px; color:var(--text-dim); align-self:flex-end; font-family:monospace;">
+              ${item.time}
+            </span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    let currentWishFilter = 'semua';
+    function filterWishes(status) {
+      currentWishFilter = status;
+      document.querySelectorAll('.wishes-filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.textContent.includes(status) || (status === 'semua' && btn.textContent === 'Semua')) {
+          btn.classList.add('active');
+        }
+      });
+      
+      if (status === 'semua') {
+        renderWishes(allWishes);
+      } else {
+        const filtered = allWishes.filter(item => {
+          const isHadir = item.rsvp.toLowerCase().includes('hadir') && !item.rsvp.toLowerCase().includes('tidak');
+          if (status === 'Hadir') return isHadir;
+          if (status === 'Tidak Hadir') return !isHadir;
+          return true;
+        });
+        renderWishes(filtered);
+      }
+    }
+
+    async function saveAndFetchGSheets() {
+      const url = document.getElementById('gsheets-url-input').value.trim();
+      if (!url) {
+        showToast('error', 'URL Kosong', 'Masukkan link CSV Google Sheets');
+        return;
+      }
+      if (!url.startsWith('http')) {
+        showToast('error', 'Link Salah', 'Masukkan link URL yang valid');
+        return;
+      }
+      
+      const w = weddings.find(x => x.id === currentWeddingId);
+      if (w) {
+        w.sheet_url = url;
+        await saveCurrentWedding();
+        fetchGSheetsWishes(url);
+        showToast('success', 'Terkoneksi', 'Berhasil menyambungkan Google Sheets');
+      }
+    }
+
+    function showNoSheetConnected() {
+      const loading = document.getElementById('wishes-loading');
+      const empty = document.getElementById('wishes-empty');
+      const filterBar = document.getElementById('wishes-filter-bar');
+      const container = document.getElementById('wishes-container');
+      if (loading) loading.style.display = 'none';
+      if (empty) {
+        empty.textContent = 'Belum ada link Google Sheets terhubung. Silakan publikasikan Google Sheet ucapan Anda sebagai CSV dan hubungkan di atas.';
+        empty.style.display = 'block';
+      }
+      if (filterBar) filterBar.style.display = 'none';
+      if (container) container.innerHTML = '';
     }
 
     // Init
