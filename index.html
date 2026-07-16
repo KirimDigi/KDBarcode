@@ -2587,9 +2587,9 @@
                   <tr>
                     <th>#</th>
                     <th>Nama Tamu</th>
-                    <th>Kategori</th>
-                    <th>Link Undangan Digital</th>
                     <th>Aksi Bagikan</th>
+                    <th>Link Undangan Digital</th>
+                    <th>Kategori</th>
                   </tr>
                 </thead>
                 <tbody id="sebar-tbody"></tbody>
@@ -4479,13 +4479,9 @@ Terima kasih.`;
             <td style="color:var(--text-dim)">${i + 1}</td>
             <td class="td-name">${g.name}</td>
             <td>
-              <select class="table-select-category" onchange="changeGuestCategoryFromSebar('${g.id}', this.value)">
-                <option value="⭐ VIP" ${g.category === '⭐ VIP' ? 'selected' : ''}>⭐ VIP</option>
-                <option value="Keluarga" ${g.category === 'Keluarga' ? 'selected' : ''}>Keluarga</option>
-                <option value="Kerabat" ${g.category === 'Kerabat' ? 'selected' : ''}>Kerabat</option>
-                <option value="Teman" ${g.category === 'Teman' ? 'selected' : ''}>Teman</option>
-                <option value="Regular" ${(g.category === 'Regular' || !g.category) ? 'selected' : ''}>Regular</option>
-              </select>
+              <button class="btn-checkin" onclick="openShareModal('${g.id}')" style="border-color: var(--teal); color: var(--teal-light);">
+                ✉️ Bagikan
+              </button>
             </td>
             <td>
               <a href="${guestData.link}" target="_blank" style="color: var(--teal-light); text-decoration: none;" title="${guestData.link}">
@@ -4493,9 +4489,13 @@ Terima kasih.`;
               </a>
             </td>
             <td>
-              <button class="btn-checkin" onclick="openShareModal('${g.id}')" style="border-color: var(--teal); color: var(--teal-light);">
-                ✉️ Bagikan
-              </button>
+              <select class="table-select-category" onchange="changeGuestCategoryFromSebar('${g.id}', this.value)">
+                <option value="⭐ VIP" ${g.category === '⭐ VIP' ? 'selected' : ''}>⭐ VIP</option>
+                <option value="Keluarga" ${g.category === 'Keluarga' ? 'selected' : ''}>Keluarga</option>
+                <option value="Kerabat" ${g.category === 'Kerabat' ? 'selected' : ''}>Kerabat</option>
+                <option value="Teman" ${g.category === 'Teman' ? 'selected' : ''}>Teman</option>
+                <option value="Regular" ${(g.category === 'Regular' || !g.category) ? 'selected' : ''}>Regular</option>
+              </select>
             </td>
           </tr>
         `;
