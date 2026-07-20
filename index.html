@@ -1519,9 +1519,9 @@
     }
 
     /* ── RESULT MODAL COMPACT RESPONSIVE ── */
-    /* Cover photo: slim banner style */
+    /* Cover photo: Taller hero style */
     #result-cover-container {
-      height: 130px !important;
+      height: 260px !important;
       margin-bottom: 12px !important;
     }
     /* Icon container compact */
@@ -1540,14 +1540,14 @@
       flex-wrap: wrap;
       padding-top: 10px;
     }
-    /* Mobile: very tight */
+    /* Mobile / Landscape overrides */
     @media (max-height: 700px), (max-width: 480px) {
       .result-modal-content {
         padding: 14px 14px 12px !important;
         max-width: 96vw !important;
       }
       #result-cover-container {
-        height: 100px !important;
+        height: 190px !important;
         margin-bottom: 8px !important;
       }
       #result-icon-container {
@@ -1560,17 +1560,15 @@
       display: flex !important;
       flex-direction: column !important;
       padding: 20px !important;
-      /* photo bleeds to edges via negative margins */
     }
-    /* When photo is hidden, restore top padding */
     #result-cover-container[style*="display: none"] ~ * {
       /* no special treatment needed */
     }
-    @media (max-height: 640px) {
-      #result-cover-container { height: 160px !important; }
+    @media (max-height: 620px) {
+      #result-cover-container { height: 140px !important; }
     }
     @media (max-width: 380px) {
-      #result-cover-container { height: 180px !important; }
+      #result-cover-container { height: 160px !important; }
       .result-modal-content { padding: 14px !important; }
     }
 
