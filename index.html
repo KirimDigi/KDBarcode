@@ -3057,7 +3057,7 @@
         avatar.style.color = 'var(--dark)';
         name.textContent = guest.name;
         idEl.textContent = 'ID: ' + guest.id;
-        category.textContent = guest.category || 'Regular';
+        category.textContent = guest.category || '—';
         
         if (type === 'double') {
           // #4: Sudah di-scan 2x (Silang merah besar & "barcode tamu ini sudah di scan")
@@ -3332,7 +3332,7 @@
 
       categories.forEach(cat => {
         const catGuests = guests.filter(g => {
-          const gCat = g.category || 'Regular';
+          const gCat = g.category || '';
           return gCat === cat;
         });
         const catTotal = catGuests.length;
@@ -3387,11 +3387,7 @@
       <td class="td-name">${g.name}</td>
       <td>
         <select class="table-select-category" onchange="changeGuestCategory('${g.id}', this.value)">
-          <option value="⭐ VIP" ${g.category === '⭐ VIP' ? 'selected' : ''}>⭐ VIP</option>
-          <option value="Keluarga" ${g.category === 'Keluarga' ? 'selected' : ''}>Keluarga</option>
-          <option value="Kerabat" ${g.category === 'Kerabat' ? 'selected' : ''}>Kerabat</option>
-          <option value="Teman" ${g.category === 'Teman' ? 'selected' : ''}>Teman</option>
-          <option value="Regular" ${(g.category === 'Regular' || !g.category) ? 'selected' : ''}>Regular</option>
+          ${buildCategoryOptions(g.category || '')}
         </select>
       </td>
       <td><span class="badge ${g.checkin ? 'badge-hadir' : 'badge-belum'}">${g.checkin ? 'Hadir' : 'Belum'}</span></td>
@@ -3412,11 +3408,7 @@
       <td class="td-name">${g.name}</td>
       <td>
         <select class="table-select-category" onchange="changeGuestCategory('${g.id}', this.value)">
-          <option value="⭐ VIP" ${g.category === '⭐ VIP' ? 'selected' : ''}>⭐ VIP</option>
-          <option value="Keluarga" ${g.category === 'Keluarga' ? 'selected' : ''}>Keluarga</option>
-          <option value="Kerabat" ${g.category === 'Kerabat' ? 'selected' : ''}>Kerabat</option>
-          <option value="Teman" ${g.category === 'Teman' ? 'selected' : ''}>Teman</option>
-          <option value="Regular" ${(g.category === 'Regular' || !g.category) ? 'selected' : ''}>Regular</option>
+          ${buildCategoryOptions(g.category || '')}
         </select>
       </td>
       <td><span class="badge ${g.checkin ? 'badge-hadir' : 'badge-belum'}">${g.checkin ? 'Hadir' : 'Belum'}</span></td>
@@ -3428,7 +3420,51 @@
   `).join('');
     }
 
-    async function changeGuestCategory(id, newCategory) {
+    
+    // ══════════════════════════════════════════
+    //  HELPER: Build category dropdown options
+    //  Custom category: shown at top, selected
+    //  Empty category: placeholder, not forced to any preset
+    // ══════════════════════════════════════════
+    function buildCategoryOptions(currentCat) {
+      var presets = ['⭐ VIP', 'Keluarga', 'Kerabat', 'Teman', 'Regular'];
+      var isPreset = presets.indexOf(currentCat) !== -1;
+      var isEmpty = !currentCat || currentCat.trim() === '';
+      var isCustom = !isPreset && !isEmpty;
+      var opts = '<option value=""' + (isEmpty ? ' selected' : '') + '>— Pilih Kategori —</option>';
+      if (isCustom) {
+        opts += '<option value="' + currentCat + '" selected>' + currentCat + ' ★</option>';
+        opts += '<option disabled>──────────────</option>';
+      }
+      presets.forEach(function(p) {
+        var sel = (!isCustom && !isEmpty && currentCat === p) ? ' selected' : '';
+        opts += '<option value="' + p + '"' + sel + '>' + p + '</option>';
+      });
+      return opts;
+    }
+
+    // ══════════════════════════════════════════
+    //  HELPER: Build category dropdown options
+    //  Custom category: shown at top, selected
+    //  Empty category: placeholder, not forced to any preset
+    // ══════════════════════════════════════════
+    function buildCategoryOptions(currentCat) {
+      var presets = ['⭐ VIP', 'Keluarga', 'Kerabat', 'Teman', 'Regular'];
+      var isPreset = presets.indexOf(currentCat) !== -1;
+      var isEmpty = !currentCat || currentCat.trim() === '';
+      var isCustom = !isPreset && !isEmpty;
+      var opts = '<option value=""' + (isEmpty ? ' selected' : '') + '>— Pilih Kategori —</option>';
+      if (isCustom) {
+        opts += '<option value="' + currentCat + '" selected>' + currentCat + ' ★</option>';
+        opts += '<option disabled>──────────────</option>';
+      }
+      presets.forEach(function(p) {
+        var sel = (!isCustom && !isEmpty && currentCat === p) ? ' selected' : '';
+        opts += '<option value="' + p + '"' + sel + '>' + p + '</option>';
+      });
+      return opts;
+    }
+async function changeGuestCategory(id, newCategory) {
       const guest = guests.find(g => g.id === id);
       if (!guest) return;
       guest.category = newCategory;
@@ -3656,7 +3692,7 @@
           rows.forEach(row => {
             const name = (row['Nama'] || row['Nama Tamu'] || row['nama'] || '').toString().trim();
             if (!name) return;
-            const category = (row['Kategori'] || row['Kategori Tamu'] || row['kategori'] || 'Regular').toString().trim();
+            const category = (row['Kategori'] || row['Kategori Tamu'] || row['kategori'] || '').toString().trim();
             const isDuplicate = guests.some(g => g.name.toLowerCase().trim() === name.toLowerCase()) ||
               toInsert.some(g => g.name.toLowerCase().trim() === name.toLowerCase());
             if (isDuplicate) return;
@@ -4392,12 +4428,8 @@ Terima kasih.`;
             </td>
             <td>
               <select class="table-select-category" onchange="changeGuestCategoryFromSebar('${g.id}', this.value)">
-                <option value="⭐ VIP" ${g.category === '⭐ VIP' ? 'selected' : ''}>⭐ VIP</option>
-                <option value="Keluarga" ${g.category === 'Keluarga' ? 'selected' : ''}>Keluarga</option>
-                <option value="Kerabat" ${g.category === 'Kerabat' ? 'selected' : ''}>Kerabat</option>
-                <option value="Teman" ${g.category === 'Teman' ? 'selected' : ''}>Teman</option>
-                <option value="Regular" ${(g.category === 'Regular' || !g.category) ? 'selected' : ''}>Regular</option>
-              </select>
+          ${buildCategoryOptions(g.category || '')}
+        </select>
             </td>
           </tr>
         `;
