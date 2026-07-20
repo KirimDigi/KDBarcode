@@ -2419,6 +2419,7 @@
     let activityLog = [];
     let cameraOn = false;
     let html5Qr = null;
+    let realtimeChannel = null;
 
     async function loadWeddings() {
       let localWeddings = [];
@@ -2499,7 +2500,97 @@
       }
     }
 
-    async function loadWeddingData(weddingId) {
+        // ══════════════════════════════════════════
+    //  SUPABASE REALTIME SYNCHRONIZATION (CROSS-DEVICE)
+    // ══════════════════════════════════════════
+    function cleanupRealtimeSubscription() {
+      if (supabaseClient && realtimeChannel) {
+        supabaseClient.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+        console.log('Unsubscribed from Supabase realtime updates');
+      }
+    }
+
+    function setupRealtimeSubscription(weddingId) {
+      if (!supabaseClient) return;
+      
+      cleanupRealtimeSubscription();
+
+      console.log('Setting up Supabase realtime subscription for wedding:', weddingId);
+      
+      realtimeChannel = supabaseClient.channel('realtime-wedding-' + weddingId)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'guests',
+            filter: 'wedding_id=eq.' + weddingId
+          },
+          function(payload) {
+            console.log('Realtime change received on guests:', payload);
+            if (payload.eventType === 'INSERT') {
+              var exists = guests.some(function(g) { return g.id === payload.new.id; });
+              if (!exists) {
+                guests.push(payload.new);
+              }
+            } else if (payload.eventType === 'UPDATE') {
+              var idx = guests.findIndex(function(g) { return g.id === payload.new.id; });
+              if (idx !== -1) {
+                guests[idx].checkin = payload.new.checkin;
+                guests[idx].category = payload.new.category;
+                guests[idx].name = payload.new.name;
+              }
+            } else if (payload.eventType === 'DELETE') {
+              guests = guests.filter(function(g) { return g.id !== payload.old.id; });
+            }
+
+            // Sync with memory representation of active wedding list
+            const w = weddings.find(function(x) { return x.id === weddingId; });
+            if (w) w.guests = guests;
+
+            // Re-render UI views dynamically
+            updateDashboard();
+            renderTable();
+            renderGuestTable();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'weddings',
+            filter: 'id=eq.' + weddingId
+          },
+          function(payload) {
+            console.log('Realtime change received on wedding metadata:', payload);
+            if (payload.new.recent_scans) {
+              recentScans = payload.new.recent_scans;
+            }
+            if (payload.new.activity_log) {
+              activityLog = payload.new.activity_log;
+            }
+
+            // Sync with memory representation
+            const w = weddings.find(function(x) { return x.id === weddingId; });
+            if (w) {
+              w.recentScans = recentScans;
+              w.activityLog = activityLog;
+            }
+
+            // Re-render log views
+            renderRecentScans();
+            renderActivity();
+            updateDashboard();
+          }
+        )
+        .subscribe(function(status) {
+          console.log('Subscription status for realtime updates:', status);
+        });
+    }
+
+async function loadWeddingData(weddingId) {
       const w = weddings.find(x => x.id === weddingId);
       if (!w) return;
       currentWeddingId = weddingId;
@@ -2528,6 +2619,7 @@
           if (guestErr) throw guestErr;
 
           guests = guestData || [];
+          setupRealtimeSubscription(weddingId);
         } catch (e) {
           console.error("Gagal load data pernikahan dari Supabase:", e);
           showToast('error', 'Gagal Load', 'Gagal memuat data dari Supabase.');
@@ -2607,6 +2699,7 @@
     document.getElementById('login-user').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
     async function doLogout() {
+      cleanupRealtimeSubscription();
       localStorage.removeItem(SESSION_KEY);
       stopCamera();
       await saveCurrentWedding();
@@ -2626,6 +2719,7 @@
     }
 
     async function backToAdmin() {
+      cleanupRealtimeSubscription();
       if (!isSuperAdmin) return;
       stopCamera();
       await saveCurrentWedding();
@@ -2894,7 +2988,22 @@
         if (!cameras || !cameras.length) { showToast('error', 'Kamera tidak ditemukan', 'Pastikan izin kamera diberikan'); return; }
         // Prefer back camera
         const cam = cameras.find(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('rear')) || cameras[cameras.length - 1];
-        html5Qr.start(cam.id, { fps: 10, qrbox: { width: 200, height: 200 } }, onScanSuccess, () => { }).then(() => {
+        html5Qr.start(
+          cam.id, 
+          { 
+            fps: 25, 
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+              var minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+              var size = Math.floor(minEdge * 0.75);
+              return { width: size, height: size };
+            },
+            experimentalFeatures: {
+              useBarCodeDetectorIfSupported: true
+            }
+          }, 
+          onScanSuccess, 
+          () => { }
+        ).then(() => {
           cameraOn = true;
           status.textContent = 'Kamera aktif — arahkan ke QR code';
           status.className = 'scanner-status scanning';
@@ -2959,7 +3068,7 @@
           showResult(null, code);
           showToast('error', 'Tamu Tidak Ditemukan', 'Tamu tidak terdaftar: ' + code);
           playBeep(false);
-          scanLocked = false;
+          // Keep scanLocked = true while modal is open to prevent double scanning/beeping
           return;
         }
       }
@@ -2967,7 +3076,7 @@
       if (guest.checkin) {
         showResult(guest, 'double');
         playBeep(false);
-        scanLocked = false;
+        // Keep scanLocked = true while modal is open to prevent double scanning/beeping
         return;
       }
 
@@ -3873,7 +3982,23 @@ async function changeGuestCategory(id, newCategory) {
     // ══════════════════════════════════════════
     //  BEEP SOUND
     // ══════════════════════════════════════════
+    var scannerBeepAudio = null;
     function playBeep(success) {
+      try {
+        if (!scannerBeepAudio) {
+          scannerBeepAudio = new Audio('SHOP SCANNER BEEP SOUND EFFECT  SOUND FX (mp3cut.net).mp3');
+        }
+        scannerBeepAudio.currentTime = 0;
+        scannerBeepAudio.play().catch(function(e) {
+          console.warn('Audio play blocked or failed:', e);
+          playSyntheticBeep(success);
+        });
+      } catch (err) {
+        playSyntheticBeep(success);
+      }
+    }
+
+    function playSyntheticBeep(success) {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const o = ctx.createOscillator();
