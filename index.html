@@ -4030,8 +4030,12 @@
           const keys = Object.keys(row);
 
           const nameKey = keys.find(k => k.toLowerCase().includes('nama') || k.toLowerCase().includes('name')) || keys[1] || '';
-          const rsvpKey = keys.find(k => k.toLowerCase().includes('rsvp') || k.toLowerCase().includes('konfirmasi') || k.toLowerCase().includes('kehadiran') || k.toLowerCase().includes('status')) || keys[2] || '';
-          const wishKey = keys.find(k => k.toLowerCase().includes('ucapan') || k.toLowerCase().includes('doa') || k.toLowerCase().includes('wish') || k.toLowerCase().includes('pesan')) || keys[3] || '';
+          // rsvpKey: cari kolom status/kehadiran, fallback ke kolom ke-4 (index 3 = Kolom D)
+          const rsvpKey = keys.find(k => k.toLowerCase().includes('rsvp') || k.toLowerCase().includes('konfirmasi') || k.toLowerCase().includes('kehadiran') || k.toLowerCase().includes('status')) || keys[3] || '';
+          // wishKey: cari kolom ucapan/pesan, fallback ke kolom ke-3 (index 2 = Kolom C)
+          const wishKey = keys.find(k => k.toLowerCase().includes('ucapan') || k.toLowerCase().includes('doa') || k.toLowerCase().includes('wish') || k.toLowerCase().includes('pesan')) || keys[2] || '';
+          // guestCountKey: cari kolom jumlah tamu, fallback ke kolom ke-5 (index 4 = Kolom E)
+          const guestCountKey = keys.find(k => k.toLowerCase().includes('jumlah') || k.toLowerCase().includes('tamu') || k.toLowerCase().includes('pax') || k.toLowerCase().includes('orang')) || keys[4] || '';
 
           // Detect separate date & time columns or full timestamp column
           const timestampKey = keys.find(k => k.toLowerCase() === 'timestamp');
@@ -4055,9 +4059,10 @@
             name: row[nameKey] || 'Tamu Tanpa Nama',
             rsvp: row[rsvpKey] || 'Hadir',
             wish: row[wishKey] || '',
+            guestCount: row[guestCountKey] || '',
             time: formatExcelDate(rawTime)
           };
-        }).filter(item => item.wish.trim() !== '');
+        }).filter(item => item.name && item.name !== 'Tamu Tanpa Nama' || item.wish.trim() !== '');
 
         if (loading) loading.style.display = 'none';
 
@@ -4120,13 +4125,14 @@
             <div style="width:100%;">
               <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
                 <span style="font-weight:600; color:var(--cream); font-size:14px;">${item.name}</span>
-                <div style="display:flex; align-items:center;">
+                <div style="display:flex; align-items:center; gap:6px;">
                   <span class="badge ${badgeClass}" style="font-size:9px; padding:2px 8px;">${badgeLabel}</span>
+                  ${item.guestCount ? `<span style="font-size:9px; background:rgba(233,195,73,0.15); color:var(--gold); border:1px solid rgba(233,195,73,0.3); border-radius:4px; padding:2px 7px;">👥 ${item.guestCount} tamu</span>` : ''}
                   ${deleteBtnHtml}
                 </div>
               </div>
               <p style="font-size:13px; color:var(--text); font-style:italic; line-height:1.4; margin:8px 0 0 0; width:100%; word-break:break-word;">
-                "${item.wish}"
+                "${item.wish || '—'}"
               </p>
             </div>
             <span style="font-size:10px; color:var(--text-dim); align-self:flex-end; font-family:monospace; margin-top:8px;">
