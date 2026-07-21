@@ -2311,6 +2311,7 @@
     let activeGroom = '';
     let activeBride = '';
     let activeCoverUrl = '';
+    let activeWeddingDate = '';
     let editingWeddingId = null;
 
     function compressImage(file, callback) {
@@ -2688,6 +2689,7 @@ async function loadWeddingData(weddingId) {
             activeGroom = match.groom || '';
             activeBride = match.bride || '';
             activeCoverUrl = match.cover_url || '';
+            activeWeddingDate = match.date || '';
             document.getElementById('page-login').classList.remove('active');
             document.getElementById('page-app').classList.add('active');
             document.getElementById('topbar-wedding-name').textContent = match.bride + ' ♡ ' + match.groom;
@@ -2908,6 +2910,7 @@ async function loadWeddingData(weddingId) {
       activeGroom = w.groom || '';
       activeBride = w.bride || '';
       activeCoverUrl = w.cover_url || '';
+      activeWeddingDate = w.date || '';
       document.getElementById('page-admin').classList.remove('active');
       document.getElementById('page-app').classList.add('active');
       document.getElementById('topbar-wedding-name').textContent = w.bride + ' ♡ ' + w.groom;
@@ -3215,7 +3218,8 @@ async function loadWeddingData(weddingId) {
           // Sukses
           welcomeTitle.textContent = "Selamat Datang";
           welcomeTitle.style.color = "var(--gold-light)";
-          welcomeSubtitle.innerHTML = `di Pernikahan <strong>${activeBride} ♡ ${activeGroom}</strong>`;
+          const dateHtml = activeWeddingDate ? `<div style="font-size:12px; color:var(--text-dim); margin-top:4px;">${activeWeddingDate}</div>` : '';
+          welcomeSubtitle.innerHTML = `di Pernikahan <strong>${activeBride} ♡ ${activeGroom}</strong>${dateHtml}`;
           iconContainer.innerHTML = successIconHtml;
           status.innerHTML = '<span class="badge badge-hadir">✓ Hadir</span>';
           time.textContent = formatTime(guest.checkin);
@@ -4438,6 +4442,13 @@ async function changeGuestCategory(id, newCategory) {
           if (match) {
             isSuperAdmin = false;
             await loadWeddingData(match.id);
+            
+            // Populate couple info on session restore
+            activeGroom = match.groom || '';
+            activeBride = match.bride || '';
+            activeCoverUrl = match.cover_url || '';
+            activeWeddingDate = match.date || '';
+
             document.getElementById('page-login').classList.remove('active');
             document.getElementById('page-app').classList.add('active');
             document.getElementById('topbar-wedding-name').textContent = match.bride + ' ♡ ' + match.groom;
