@@ -1179,7 +1179,8 @@
 
     @media (max-width: 480px) {
       .stats-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
       }
       .form-row {
         grid-template-columns: 1fr !important;
@@ -1633,7 +1634,7 @@
       <div class="admin-title">Manajemen Akun Pernikahan</div>
       <p class="admin-sub">Buat & kelola akun pernikahan — setiap akun memiliki data tamu terpisah</p>
 
-      <div class="admin-card glass">
+      <div class="admin-card glass" id="admin-add-card">
         <div class="admin-card-title">Tambah Akun Pernikahan Baru</div>
         <div class="form-row">
           <div class="form-group">
@@ -2619,6 +2620,20 @@ async function loadWeddingData(weddingId) {
           if (guestErr) throw guestErr;
 
           guests = guestData || [];
+          
+          // Fetch invitation settings from link_undangan table
+          try {
+            const { data: linkData, error: linkErr } = await supabaseClient.from('link_undangan').select('invitation_url, invitation_text').eq('wedding_id', weddingId).single();
+            if (!linkErr && linkData) {
+              w.invitation_url = linkData.invitation_url || '';
+              w.invitation_text = linkData.invitation_text || '';
+              localStorage.setItem('invite_url_' + weddingId, w.invitation_url);
+              localStorage.setItem('invite_text_' + weddingId, w.invitation_text);
+            }
+          } catch (err) {
+            console.warn("Failed to load invitation link settings from link_undangan table:", err);
+          }
+
           setupRealtimeSubscription(weddingId);
         } catch (e) {
           console.error("Gagal load data pernikahan dari Supabase:", e);
@@ -2748,19 +2763,33 @@ async function loadWeddingData(weddingId) {
     function renderWeddingList() {
       const el = document.getElementById('wedding-list');
       if (!el) return;
+
+      // Show/Hide Tambah Akun card based on isSuperAdmin
+      const addCard = document.getElementById('admin-add-card');
+      if (addCard) {
+        addCard.style.display = isSuperAdmin ? 'block' : 'none';
+      }
+
       if (!weddings.length) {
         el.innerHTML = '<div class="empty-state">Belum ada akun pernikahan.</div>';
         return;
       }
+
       el.innerHTML = weddings.map(w => {
         const total = (w.guests || []).length;
         const hadir = (w.guests || []).filter(g => g.checkin).length;
+
+        // Action buttons restricted to isSuperAdmin only
+        const editLinkHtml = isSuperAdmin ? `<button class="btn-admin" onclick="editWeddingSheetUrl('${w.id}')" style="border-color:var(--gold); color:var(--gold);">Edit Link</button>` : '';
+        const editFotoHtml = isSuperAdmin ? `<button class="btn-admin" onclick="editWeddingCoverUrl('${w.id}')" style="border-color:var(--teal); color:var(--teal-light);">Edit Foto</button>` : '';
+        const hapusHtml = isSuperAdmin ? `<button class="btn-admin danger" onclick="deleteWedding('${w.id}')">Hapus</button>` : '';
+
         return `
       <div class="wedding-item">
         <div class="wedding-info">
           <div class="wedding-couple">${w.bride} ♡ ${w.groom}</div>
-          <div class="wedding-meta">${w.date} · ${total} tamu · ${hadir} hadir</div>
-          <div class="wedding-meta" style="margin-top:2px;color:var(--gold)">User: <strong>${w.user}</strong> / Pass: <strong>${w.pass}</strong></div>
+          <div class="wedding-meta">${w.date}</div>
+          ${isSuperAdmin ? `<div class="wedding-meta" style="margin-top:2px;color:var(--gold)">User: <strong>${w.user}</strong> / Pass: <strong>${w.pass}</strong></div>` : ''}
           <div class="wedding-meta" style="margin-top:2px;color:${w.sheet_url ? 'var(--success)' : 'var(--text-dim)'}">
             Spreadsheet: <strong>${w.sheet_url ? 'Terhubung ✓' : 'Belum Terhubung ✕'}</strong>
           </div>
@@ -2770,9 +2799,9 @@ async function loadWeddingData(weddingId) {
         </div>
         <div class="wedding-actions">
           <button class="btn-admin primary" onclick="enterWedding('${w.id}')">Buka</button>
-          <button class="btn-admin" onclick="editWeddingSheetUrl('${w.id}')" style="border-color:var(--gold); color:var(--gold);">Edit Link</button>
-          <button class="btn-admin" onclick="editWeddingCoverUrl('${w.id}')" style="border-color:var(--teal); color:var(--teal-light);">Edit Foto</button>
-          <button class="btn-admin danger" onclick="deleteWedding('${w.id}')">Hapus</button>
+          ${editLinkHtml}
+          ${editFotoHtml}
+          ${hapusHtml}
         </div>
       </div>`;
       }).join('');
@@ -4477,6 +4506,20 @@ Terima kasih.`;
         
         localStorage.setItem('invite_url_' + currentWeddingId, url);
         localStorage.setItem('invite_text_' + currentWeddingId, text);
+        
+        if (supabaseClient) {
+          try {
+            const { error } = await supabaseClient.from('link_undangan').upsert({
+              wedding_id: currentWeddingId,
+              invitation_url: url,
+              invitation_text: text
+            });
+            if (error) throw error;
+          } catch (e) {
+            console.error("Gagal menyimpan link undangan ke Supabase:", e);
+            showToast('error', 'Gagal Sinkron', 'Gagal menyimpan pengaturan ke database online.');
+          }
+        }
         
         await saveCurrentWedding();
         showToast('success', 'Disimpan', 'Pengaturan undangan berhasil disimpan');
