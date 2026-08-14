@@ -2020,14 +2020,20 @@
               </div>
               <div class="form-group">
                 <label>Kategori</label>
-                <select id="new-category">
+                <select id="new-category" onchange="handleNewCategoryChange(this.value)">
                   <option value="⭐ VIP">⭐ VIP</option>
                   <option value="Keluarga">Keluarga</option>
                   <option value="Kerabat">Kerabat</option>
                   <option value="Teman">Teman</option>
                   <option value="Regular" selected>Regular</option>
+                  <option value="custom">-- Kategori Custom --</option>
                 </select>
               </div>
+            </div>
+            <!-- Custom Category Input (Hidden by default) -->
+            <div class="form-group" id="new-category-custom-wrap" style="display: none; margin-bottom: 20px;">
+              <label>Kategori Custom Baru</label>
+              <input type="text" id="new-category-custom" placeholder="Tulis kategori custom...">
             </div>
             <button class="btn-primary" style="max-width:200px" onclick="addGuest()">+ Tambah Tamu</button>
           </div>
@@ -3027,6 +3033,7 @@ async function loadWeddingData(weddingId) {
             qrbox: function(viewfinderWidth, viewfinderHeight) {
               var minEdge = Math.min(viewfinderWidth, viewfinderHeight);
               var size = Math.floor(minEdge * 0.75);
+              if (size < 50) size = 50;
               return { width: size, height: size };
             },
             experimentalFeatures: {
@@ -3360,14 +3367,48 @@ async function loadWeddingData(weddingId) {
         el.innerHTML = '<p class="no-data">Belum ada scan</p>'; return;
       }
       el.innerHTML = recentScans.map(s => `
-    <div style="padding:12px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:13px;color:var(--cream)">${s.name}</div>
+    <div style="padding:12px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.name}</div>
         <div style="font-size:11px;color:var(--text-dim);margin-top:2px">ID: ${s.id}</div>
       </div>
-      <div style="font-size:11px;color:var(--gold);font-family:monospace">${formatTime(s.time)}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+        <span style="font-size:11px;color:var(--gold);font-family:monospace">${formatTime(s.time)}</span>
+        <button class="btn-delete" onclick="deleteRecentScan('${s.id}', ${s.ts})" style="padding:2px 8px;font-size:10px;border-radius:4px;cursor:pointer;line-height:1.2" title="Hapus scan & batalkan check-in">Hapus</button>
+      </div>
     </div>
   `).join('');
+    }
+
+    async function deleteRecentScan(guestId, ts) {
+      if (!confirm('Batalkan check-in untuk tamu ini dan hapus dari riwayat scan?')) return;
+
+      const guest = guests.find(g => g.id === guestId);
+      if (guest) {
+        guest.checkin = null;
+        if (supabaseClient) {
+          try {
+            const { error } = await supabaseClient.from('guests').update({ checkin: null }).eq('wedding_id', currentWeddingId).eq('id', guestId);
+            if (error) throw error;
+          } catch (e) {
+            console.error("Gagal batalkan check-in di Supabase:", e);
+            showToast('error', 'Gagal Sinkron', 'Gagal membatalkan check-in di basis data online.');
+          }
+        }
+      }
+
+      recentScans = recentScans.filter(s => !(s.id === guestId && (ts ? s.ts === ts : true)));
+      activityLog = activityLog.filter(a => !(a.id === guestId && (ts ? a.ts === ts : true)));
+
+      await saveCurrentWedding();
+
+      renderRecentScans();
+      renderActivity();
+      updateDashboard();
+      renderTable();
+      renderGuestTable();
+
+      showToast('success', 'Berhasil Dihapus', 'Riwayat scan berhasil dihapus dan check-in dibatalkan.');
     }
 
     // ══════════════════════════════════════════
@@ -3589,27 +3630,7 @@ async function loadWeddingData(weddingId) {
       return opts;
     }
 
-    // ══════════════════════════════════════════
-    //  HELPER: Build category dropdown options
-    //  Custom category: shown at top, selected
-    //  Empty category: placeholder, not forced to any preset
-    // ══════════════════════════════════════════
-    function buildCategoryOptions(currentCat) {
-      var presets = ['⭐ VIP', 'Keluarga', 'Kerabat', 'Teman', 'Regular'];
-      var isPreset = presets.indexOf(currentCat) !== -1;
-      var isEmpty = !currentCat || currentCat.trim() === '';
-      var isCustom = !isPreset && !isEmpty;
-      var opts = '<option value=""' + (isEmpty ? ' selected' : '') + '>— Pilih Kategori —</option>';
-      if (isCustom) {
-        opts += '<option value="' + currentCat + '" selected>' + currentCat + ' ★</option>';
-        opts += '<option disabled>──────────────</option>';
-      }
-      presets.forEach(function(p) {
-        var sel = (!isCustom && !isEmpty && currentCat === p) ? ' selected' : '';
-        opts += '<option value="' + p + '"' + sel + '>' + p + '</option>';
-      });
-      return opts;
-    }
+
 async function changeGuestCategory(id, newCategory) {
       const guest = guests.find(g => g.id === id);
       if (!guest) return;
@@ -3646,9 +3667,21 @@ async function changeGuestCategory(id, newCategory) {
     // ══════════════════════════════════════════
     //  ADD / DELETE GUEST
     // ══════════════════════════════════════════
+    function handleNewCategoryChange(val) {
+      const customWrap = document.getElementById('new-category-custom-wrap');
+      if (customWrap) {
+        customWrap.style.display = val === 'custom' ? 'block' : 'none';
+      }
+    }
+
     async function addGuest() {
       const name = document.getElementById('new-name').value.trim();
-      const category = document.getElementById('new-category').value;
+      let category = document.getElementById('new-category').value;
+      if (category === 'custom') {
+        const customInput = document.getElementById('new-category-custom');
+        category = customInput ? customInput.value.trim() : '';
+        if (!category) { showToast('error', 'Error', 'Kategori custom harus diisi'); return; }
+      }
       if (!name) { showToast('error', 'Error', 'Nama tamu harus diisi'); return; }
 
       const isDuplicate = guests.some(g => g.name.toLowerCase().trim() === name.toLowerCase());
@@ -3674,6 +3707,11 @@ async function changeGuestCategory(id, newCategory) {
       guests.push({ id, name, category, checkin: null });
       document.getElementById('new-name').value = '';
       document.getElementById('new-category').value = 'Regular';
+      const customWrap = document.getElementById('new-category-custom-wrap');
+      if (customWrap) customWrap.style.display = 'none';
+      const customInput = document.getElementById('new-category-custom');
+      if (customInput) customInput.value = '';
+      
       await saveCurrentWedding();
       renderGuestTable(); updateDashboard(); renderTable();
       showToast('success', 'Tamu Ditambahkan', '' + name + ' berhasil ditambahkan');
